@@ -3,6 +3,12 @@
   "id": "com.github.ahjdzx.repofind",
   "version": "0.1.0",
   "build": 1,
+  "icon": {
+    "macos": "icon-macos.png",
+    "windows": "icon-full.png",
+    "linux": "icon-full.png",
+    "web": "icon-full.png"
+  },
   "capabilities": {
     "fs": { "read": ["${homeDir}", "${dataDir}"], "write": ["${dataDir}"] },
     "network": { "hosts": ["*"] },

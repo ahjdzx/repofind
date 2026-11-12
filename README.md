@@ -1,3 +1,5 @@
+<img src="app/icon-macos.png" width="112" alt="RepoFind icon">
+
 # RepoFind
 
 **English** | [简体中文](README.zh-CN.md)
