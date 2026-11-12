@@ -70,7 +70,7 @@ export function home(): string {
 
 export function expandTilde(p: string): string {
   if (p === "~") return home();
-  if (p.startsWith("~/")) return home() + p.slice(1);
+  if (p.startsWith("~/") || p.startsWith("~\\")) return home() + p.slice(1);
   return p;
 }
 
@@ -81,11 +81,12 @@ export function tildify(p: string): string {
 }
 
 export function joinPath(a: string, b: string): string {
-  return a.endsWith("/") ? a + b : a + "/" + b;
+  // Windows 的文件 API 也认 "/", 所以统一用它拼
+  return a.endsWith("/") || a.endsWith("\\") ? a + b : a + "/" + b;
 }
 
 function baseName(p: string): string {
-  const parts = p.split("/").filter(Boolean);
+  const parts = p.split(/[\\/]/).filter(Boolean);
   return parts[parts.length - 1] ?? p;
 }
 
@@ -240,7 +241,7 @@ export function tokenize(text: string): string[] {
 }
 
 export function pathTokens(path: string): string[] {
-  return tokenize(path.split(/[/_.\-]/).join(" "));
+  return tokenize(path.split(/[\\/_.\-]/).join(" "));
 }
 
 // ---------- 词法索引 (TF-IDF, 名称 > 路径 > README > 语言) ----------

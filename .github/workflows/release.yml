@@ -1,0 +1,118 @@
+name: Release
+
+# 推 v* tag: 在各平台打包并发布到 GitHub Release。
+# 手动触发 (workflow_dispatch): 只打包, 产物留在这次运行的 Artifacts 里, 不发布。
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: ${{ matrix.label }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { label: macos-arm64, os: macos-latest, target: macos }
+          - { label: macos-x86_64, os: macos-15-intel, target: macos }
+          - { label: linux-x86_64, os: ubuntu-24.04, target: linux }
+          - { label: linux-arm64, os: ubuntu-24.04-arm, target: linux }
+          - { label: windows-x86_64, os: windows-latest, target: windows }
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install nsh (macOS / Linux)
+        if: runner.os != 'Windows'
+        run: |
+          curl -fsSL https://nsh.dev/install.sh | sh
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Install nsh (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          irm https://nsh.dev/install.ps1 | iex
+          Add-Content $env:GITHUB_PATH "$env:LOCALAPPDATA\nsh\bin"
+
+      - name: Version
+        id: version
+        run: |
+          version=$(jq -r .version app/nsh.json)
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          if [ "$GITHUB_REF_TYPE" = "tag" ] && [ "$GITHUB_REF_NAME" != "v$version" ]; then
+            echo "::error::tag $GITHUB_REF_NAME does not match app/nsh.json version $version"
+            exit 1
+          fi
+
+      - name: Type check and test
+        working-directory: app
+        run: |
+          nsh --version
+          nsh check
+          nsh test
+
+      - name: Package
+        working-directory: app
+        run: |
+          nsh package --target ${{ matrix.target }}
+          ls -la .nsh/out
+
+      - name: Collect asset
+        run: |
+          mkdir -p dist
+          base="RepoFind-${{ steps.version.outputs.version }}-${{ matrix.label }}"
+          out=app/.nsh/out
+          case "${{ matrix.target }}" in
+            macos)
+              lipo -archs "$out/RepoFind.app/Contents/MacOS/RepoFind"
+              codesign --verify --deep --strict "$out/RepoFind.app"
+              ditto -c -k --keepParent "$out/RepoFind.app" "dist/$base.zip"
+              ;;
+            linux)
+              cp "$out"/*.tar.gz "dist/$base.tar.gz"
+              ;;
+            windows)
+              cp "$out"/*.zip "dist/$base.zip"
+              ;;
+          esac
+          cd dist
+          for f in *; do
+            if command -v sha256sum >/dev/null; then sha256sum "$f" > "$f.sha256"; else shasum -a 256 "$f" > "$f.sha256"; fi
+          done
+          ls -la
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.label }}
+          path: dist/*
+          if-no-files-found: error
+
+  release:
+    name: Publish
+    if: github.ref_type == 'tag'
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Create release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          ls -la dist
+          notes=".github/release-notes/$GITHUB_REF_NAME.md"
+          if [ -f "$notes" ]; then set -- --notes-file "$notes"; else set -- --generate-notes; fi
+          gh release create "$GITHUB_REF_NAME" dist/* --title "RepoFind $GITHUB_REF_NAME" --prerelease "$@"
