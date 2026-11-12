@@ -1,11 +1,12 @@
-import { mount, signal, effect, Text, View, Scroll, Clipboard, openUrl, Storage } from "nsh";
+import { mount, signal, effect, locale, Text, View, Scroll, Clipboard, openUrl, Storage } from "nsh";
 import { Input } from "nsh/base";
 import { t, setLocale } from "nsh/i18n";
-import { locale } from "nsh";
+import nodeProcess from "process";
 import {
-  scanRepo, findRepos, expandTilde, tokenize, pathTokens, LexicalIndex,
-  embedTexts, cosine, repoText, hybridSearch, home,
-  type RepoEntry, type EmbedConfig, type HybridHit,
+  scanRepo, findRepos, expandTilde, tildify, buildLex, lexSearch,
+  embedTexts, cosine, repoText, hybridSearch,
+  saveIndex, loadIndex, saveVectors, loadVectors,
+  type RepoEntry, type EmbedConfig, type HybridHit, type LexIndex,
 } from "./lib";
 
 // ============================================================
@@ -25,87 +26,96 @@ const SCAN = "#5fb3a1";        // 扫描完成/在线的青绿
 type Screen = "search" | "settings";
 type Phase = "idle" | "scanning" | "embedding" | "ready";
 
+/** 状态行存 key 而不是文案, 这样切语言时跟着变 */
+interface Status { key: string; n?: number; detail?: string }
+
 interface AppState {
   phase: Phase;
-  status: string;       // 底部状态行
-  progress: string;     // 进度详情
+  status: Status;
+  progress: string;
   repos: RepoEntry[];
-  vectorMeta: { model: string; count: number } | null;
   scannedAt: string;
   roots: string;
 }
 
-function loadConfig(): EmbedConfig {
-  // 同步读不到 Storage (async), 先给默认值, mount 后 effect 里覆盖
-  return { baseUrl: "https://api.openai.com/v1", model: "text-embedding-3-small", apiKey: "" };
+const DEFAULT_CFG: EmbedConfig = {
+  baseUrl: "https://api.openai.com/v1",
+  model: "text-embedding-3-small",
+  apiKey: "",
+};
+
+/** 应用数据目录 (索引和向量落盘的位置); 没有的平台只在内存里保留 */
+const DATA_DIR: string = nodeProcess.dataDir ?? "";
+
+function statusText(s: Status): string {
+  return [s.n !== undefined ? String(s.n) : "", t(s.key), s.detail ?? ""].filter(Boolean).join(" ");
 }
 
-function loadState(): AppState {
-  return {
-    phase: "idle",
-    status: t("app.not_indexed"),
-    progress: "",
-    repos: [],
-    vectorMeta: null,
-    scannedAt: "",
-    roots: "~/work ~/src",
-  };
+function errText(e: unknown): string {
+  return (e instanceof Error ? e.message : String(e)).slice(0, 120);
 }
 
 function App() {
   const screen = signal<Screen>("search");
-  const cfg = signal<EmbedConfig>(loadConfig());
-  const state = signal<AppState>(loadState());
+  const cfg = signal<EmbedConfig>(DEFAULT_CFG);
+  const state = signal<AppState>({
+    phase: "idle",
+    status: { key: "app.not_indexed" },
+    progress: "",
+    repos: [],
+    scannedAt: "",
+    roots: "~/work ~/src",
+  });
   const query = signal("");
   const hits = signal<HybridHit[]>([]);
   const searching = signal(false);
   const copiedIdx = signal(-1);
   const searchMode = signal<"hybrid" | "lexical">("hybrid");
-  let vectors: number[][] | null = null;
+  /** 内存里的向量, 带生成它的模型名; 只有和当前配置的模型一致才用 */
+  const vec = signal<{ model: string; vectors: Float32Array[] } | null>(null);
+  let lex: { repos: RepoEntry[]; index: LexIndex } | null = null;
   let searchSeq = 0;
 
-  // ---- 启动: 读配置和索引缓存 ----
-  effect(() => {
-    (async () => {
-      try {
-        const savedLocale = await Storage.getItem("locale");
-        if (savedLocale) setLocale(savedLocale);
-        const savedCfg = await Storage.getItem("cfg");
-        if (savedCfg) cfg.set({ ...cfg(), ...JSON.parse(savedCfg) });
-        const savedRoots = await Storage.getItem("roots");
-        if (savedRoots) {
-          const s = state();
-          state.set({ ...s, roots: savedRoots });
-        }
-        const savedIndex = await Storage.getItem("index");
-        if (savedIndex) {
-          const idx = JSON.parse(savedIndex);
-          const s = state();
-          state.set({
-            ...s,
-            repos: idx.repos,
-            scannedAt: idx.scannedAt,
-            phase: "ready",
-            status: `${idx.repos.length} 个仓库已索引`,
-          });
-          const savedVec = await Storage.getItem("vectors");
-          if (savedVec) {
-            const v = JSON.parse(savedVec);
-            if (v.model === cfg().model) {
-              vectors = v.vectors;
-              state.set({ ...state(), vectorMeta: { model: v.model, count: v.vectors.length } });
-            }
-          }
-        }
-      } catch (e) {
-        console.error("load failed", e);
-      }
-    })();
-  });
+  /** 语义检索此刻可用: 有向量、模型对得上、数量和仓库对齐、配了 key */
+  const semanticReady = () => {
+    const v = vec();
+    return !!v && v.model === cfg().model && v.vectors.length === state().repos.length && !!cfg().apiKey;
+  };
+
+  // ---- 启动: 读配置和落盘的索引 ----
+  (async () => {
+    try {
+      const savedLocale = await Storage.getItem("locale");
+      if (savedLocale) setLocale(savedLocale);
+      const savedCfg = await Storage.getItem("cfg");
+      if (savedCfg) cfg.set({ ...DEFAULT_CFG, ...JSON.parse(savedCfg) });
+      const savedRoots = await Storage.getItem("roots");
+      if (savedRoots) state.set({ ...state(), roots: savedRoots });
+      // 早期版本把索引/向量塞在 Storage 里 (会撑爆 5MB 配额), 清掉
+      Storage.removeItem("index").catch(() => {});
+      Storage.removeItem("vectors").catch(() => {});
+      if (!DATA_DIR) return;
+      const idx = await loadIndex(DATA_DIR);
+      if (!idx) return;
+      const v = await loadVectors(DATA_DIR);
+      const usable = !!v && v.vectors.length === idx.repos.length;
+      if (usable) vec.set({ model: v!.model, vectors: v!.vectors });
+      state.set({
+        ...state(),
+        repos: idx.repos,
+        scannedAt: idx.scannedAt,
+        phase: "ready",
+        status: { key: usable ? "app.status_ready" : "app.status_indexed", n: idx.repos.length },
+      });
+    } catch (e) {
+      console.error("load failed", e);
+    }
+  })();
 
   // ---- 搜索 (300ms 防抖) ----
   effect(() => {
     const q = query().trim();
+    searchMode(); // 切模式时重搜
     if (!q) {
       hits.set([]);
       searching.set(false);
@@ -113,55 +123,37 @@ function App() {
     }
     const mySeq = ++searchSeq;
     searching.set(true);
-    const t = setTimeout(() => runSearch(q, mySeq), 300);
-    return () => clearTimeout(t);
+    const timer = setTimeout(() => runSearch(q, mySeq), 300);
+    return () => clearTimeout(timer);
   });
 
   async function runSearch(q: string, mySeq: number) {
-    const s = state();
-    if (!s.repos.length) {
+    const repos = state().repos;
+    if (!repos.length) {
       if (mySeq === searchSeq) { searching.set(false); hits.set([]); }
       return;
     }
     try {
-      // 词法
-      const lex = new LexicalIndex(s.repos);
-      const lexAll: { idx: number; score: number; matched: string[] }[] = [];
-      // LexicalIndex.search 返回 topN, 这里需要全量带 idx — 重算一遍轻量打分
-      // (复用内部实现: 直接调用 search 再映射回 idx 不可靠, 所以简化: search topN 后线性定位)
-      const top = lex.search(q, 20);
-      // 用 pathTokens+tokenize 匹配不到 idx 的问题: 我们在 LexicalIndex 上加一个带 idx 的接口太重,
-      // 直接线性扫 (323 条 × 几十个 token, 毫秒级)
-      const qt = new Set([...tokenize(q), ...pathTokens(q)]);
-      // 重建 df/doc (与 LexicalIndex 相同逻辑), 为了拿到 idx 与分数 — 封装在下方 localLex
-      const localLex = buildLex(s.repos);
-      for (let i = 0; i < s.repos.length; i++) {
-        const r = scoreDoc(localLex, i, qt);
-        if (r.score > 0) lexAll.push({ idx: i, ...r });
-      }
-      lexAll.sort((a, b) => b.score - a.score);
+      if (!lex || lex.repos !== repos) lex = { repos, index: buildLex(repos) };
+      const lexHits = lexSearch(lex.index, q);
 
-      // 语义 (有向量 + 配了 key + hybrid 模式才跑)
       let semScores: Map<number, number> | null = null;
-      if (searchMode() === "hybrid" && vectors && cfg().apiKey) {
-        const [qv] = await embedTexts(cfg(), [q.slice(0, 4000)], 1);
-        const all: { idx: number; c: number }[] = [];
-        for (let i = 0; i < vectors.length; i++) {
-          all.push({ idx: i, c: cosine(qv, vectors[i]) });
-        }
+      if (searchMode() === "hybrid" && semanticReady()) {
+        const vectors = vec()!.vectors;
+        const [qv] = await embedTexts(cfg(), [q], 1);
+        const all = vectors.map((v, idx) => ({ idx, c: cosine(qv, v) }));
         all.sort((a, b) => b.c - a.c);
         semScores = new Map(all.slice(0, 20).map((x) => [x.idx, x.c]));
       }
 
       if (mySeq !== searchSeq) return;
-      hits.set(hybridSearch(s.repos, lexAll, semScores, 20));
+      hits.set(hybridSearch(repos, lexHits, semScores, 20));
       searching.set(false);
-      void top; // (search 调用仅为预热内部分词缓存)
     } catch (e) {
       if (mySeq !== searchSeq) return;
       console.error("search failed", e);
       searching.set(false);
-      state.set({ ...state(), status: `搜索出错: ${String(e).slice(0, 80)}` });
+      state.set({ ...state(), status: { key: "app.status_search_failed", detail: errText(e) } });
     }
   }
 
@@ -169,59 +161,57 @@ function App() {
   async function runIndex() {
     const roots = state().roots.split(/\s+/).filter(Boolean).map(expandTilde);
     if (!roots.length) return;
-    state.set({ ...state(), phase: "scanning", progress: "", status: t("app.status_scanning") });
+    state.set({ ...state(), phase: "scanning", progress: "", status: { key: "app.status_scanning" } });
     try {
       const found: string[] = [];
       for (const r of roots) {
         const rs = await findRepos(r);
         found.push(...rs);
-        state.set({ ...state(), progress: `${r} → ${rs.length} 个仓库` });
+        state.set({ ...state(), progress: `${tildify(r)} → ${rs.length}` });
       }
+      const paths = [...new Set(found)].sort();
       const repos: RepoEntry[] = [];
-      for (let i = 0; i < found.length; i++) {
-        repos.push(await scanRepo(found[i]));
-        if (i % 20 === 0 || i === found.length - 1) {
-          state.set({ ...state(), progress: `读取元数据 ${i + 1}/${found.length}` });
-        }
+      for (let i = 0; i < paths.length; i += 8) {
+        repos.push(...(await Promise.all(paths.slice(i, i + 8).map(scanRepo))));
+        state.set({ ...state(), progress: `${repos.length}/${paths.length}` });
       }
-      const scannedAt = new Date().toISOString().slice(0, 16).replace("T", " ");
+      const scannedAt = new Date().toISOString().slice(0, 16).replace("T", " ") + " UTC";
+      vec.set(null); // 旧向量和新仓库列表不再对齐
       state.set({
-        ...state(), repos, scannedAt, phase: "embedding",
-        status: `${repos.length} 个仓库已扫描`, progress: "生成向量…",
+        ...state(), repos, scannedAt, phase: "embedding", progress: "",
+        status: { key: "app.status_scan", n: repos.length },
       });
-      await Storage.setItem("index", JSON.stringify({ scannedAt, repos: state().roots, repos2: undefined, ...{} }) && "");
-      // 存索引 (repos 可能大, README 截断过, 一般 < 2MB)
-      await Storage.setItem("index", JSON.stringify({ scannedAt, repos }));
-      // embedding
-      if (cfg().apiKey) {
-        const texts = repos.map(repoText);
-        const vecs = await embedTexts(cfg(), texts);
-        vectors = vecs;
-        await Storage.setItem("vectors", JSON.stringify({ model: cfg().model, vectors: vecs }));
-        state.set({
-          ...state(), phase: "ready",
-          vectorMeta: { model: cfg().model, count: vecs.length },
-          status: `${repos.length} 个仓库 · ${cfg().model} 向量就绪`,
-          progress: "",
-        });
-      } else {
-        state.set({ ...state(), phase: "ready", status: `${repos.length} 个仓库 (未配置 API key, 仅词法检索)`, progress: "" });
+      if (DATA_DIR) await saveIndex(DATA_DIR, { scannedAt, repos });
+
+      if (!cfg().apiKey || !repos.length) {
+        state.set({ ...state(), phase: "ready", status: { key: "app.status_no_key", n: repos.length } });
+        return;
       }
+      const model = cfg().model;
+      const vectors = await embedTexts(cfg(), repos.map(repoText), 32, (done, total) => {
+        state.set({ ...state(), progress: `${t("app.status_indexing")} ${done}/${total}` });
+      });
+      vec.set({ model, vectors });
+      if (DATA_DIR) await saveVectors(DATA_DIR, { model, baseUrl: cfg().baseUrl, vectors });
+      state.set({ ...state(), phase: "ready", progress: "", status: { key: "app.status_ready", n: repos.length } });
     } catch (e) {
       console.error("index failed", e);
-      state.set({ ...state(), phase: "ready", status: `索引失败: ${String(e).slice(0, 100)}`, progress: "" });
+      state.set({
+        ...state(), phase: "ready", progress: "",
+        status: { key: "app.status_index_failed", detail: errText(e) },
+      });
     }
   }
 
   function saveCfg(next: EmbedConfig) {
     cfg.set(next);
     Storage.setItem("cfg", JSON.stringify(next)).catch(() => {});
-    // 模型变了, 旧向量作废
-    const vm = state().vectorMeta;
-    if (vectors && vm && vm.model !== next.model) {
-      vectors = null;
-      state.set({ ...state(), vectorMeta: null });
-    }
+  }
+
+  function toggleLocale() {
+    const next = locale().startsWith("zh") ? "en" : "zh-CN";
+    setLocale(next);
+    Storage.setItem("locale", next).catch(() => {});
   }
 
   // ================= UI =================
@@ -257,12 +247,7 @@ function App() {
                 class="rounded px-2 py-1"
                 style={{ borderWidth: 1, borderColor: locale().startsWith("zh") ? ACCENT_DIM : LINE }}
                 role="button"
-                onPress={() => {
-                  const next = locale().startsWith("zh") ? "en" : "zh-CN";
-                  setLocale(next);
-                  Storage.setItem("locale", next).catch(() => {});
-                  state.set({ ...state(), status: t("app.not_indexed") && state().repos.length ? state().repos.length + " " + t("app.status_ready") : t("app.not_indexed") });
-                }}
+                onPress={toggleLocale}
               >
                 <Text style={{ fontSize: 10, color: MUTED, fontFamily: mono }}>{locale().startsWith("zh") ? "EN" : "中文"}</Text>
               </View>
@@ -384,7 +369,7 @@ function App() {
                       )}
                     </View>
                     <Text style={{ color: MUTED, fontSize: 11, fontFamily: mono, numberOfLines: 1 }}>
-                      {e.path.replace(home(), "~")}
+                      {tildify(e.path)}
                     </Text>
                     <View class="flex-row gap-3 items-center flex-wrap pt-0.5">
                       {e.langs.map((l) => (
@@ -466,9 +451,9 @@ function App() {
               <Text style={{ color: MUTED, fontSize: 10, fontFamily: mono, lineHeight: 15 }}>
                 {t("settings.model_hint") + String.fromCharCode(10) + t("settings.storage_hint")}
               </Text>
-              {state().vectorMeta ? (
+              {semanticReady() ? (
                 <Text style={{ color: SCAN, fontSize: 10, fontFamily: mono }}>
-                  ✓ {state().vectorMeta!.model} · {state().vectorMeta!.count} vectors
+                  ✓ {vec()!.model} · {vec()!.vectors.length} vectors
                 </Text>
               ) : (
                 <Text style={{ color: ACCENT_DIM, fontSize: 10, fontFamily: mono }}>
@@ -493,15 +478,15 @@ function App() {
     const dot = state().phase === "ready" ? SCAN : state().phase === "idle" ? MUTED : ACCENT;
     return (
       <View
-        class="flex-row items-center justify-between px-6 py-2 pb-[max(env(safe-area-inset-bottom),8px)]"
+        class="flex-row items-center justify-between px-6 py-2"
         style={{ backgroundColor: PANEL, borderTopWidth: 1, borderTopColor: LINE }}
       >
         <View class="flex-row items-center gap-2">
           <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: dot }} />
-          <Text style={{ color: MUTED, fontSize: 10, fontFamily: mono }}>{state().status}</Text>
+          <Text style={{ color: MUTED, fontSize: 10, fontFamily: mono }}>{statusText(state().status)}</Text>
         </View>
         <Text style={{ color: MUTED, fontSize: 10, fontFamily: mono }}>
-          {searchMode() === "hybrid" && vectors ? "HYBRID" : "LEXICAL"}
+          {searchMode() === "hybrid" && semanticReady() ? "HYBRID" : "LEXICAL"}
         </Text>
       </View>
     );
@@ -533,37 +518,6 @@ function App() {
       </View>
     );
   }
-}
-
-// ---- 词法打分辅助 (带 idx, 供混合检索全量扫描) ----
-
-interface LexDoc { pt: Set<string>; nt: Set<string>; rt: Set<string>; lt: Set<string> }
-
-function buildLex(entries: RepoEntry[]) {
-  const df = new Map<string, number>();
-  const docs: LexDoc[] = entries.map((e) => {
-    const pt = new Set(pathTokens(e.path.replace(home(), "~")));
-    const nt = new Set(tokenize(e.name));
-    const rt = new Set(tokenize(e.readme));
-    const lt = new Set(tokenize(e.langs.join(" ")));
-    for (const t of new Set([...pt, ...nt, ...rt, ...lt])) df.set(t, (df.get(t) ?? 0) + 1);
-    return { pt, nt, rt, lt };
-  });
-  return { df, docs, n: entries.length };
-}
-
-function scoreDoc(lex: ReturnType<typeof buildLex>, i: number, qt: Set<string>): { score: number; matched: string[] } {
-  const { pt, nt, rt, lt } = lex.docs[i];
-  let score = 0;
-  const matched: string[] = [];
-  for (const tok of qt) {
-    const idf = Math.log((lex.n + 1) / ((lex.df.get(tok) ?? 0) + 1)) + 0.01;
-    if (nt.has(tok)) { score += 6 * idf; matched.push(tok); }
-    else if (pt.has(tok)) { score += 4 * idf; matched.push(tok); }
-    else if (rt.has(tok)) { score += 2 * idf; matched.push(tok); }
-    else if (lt.has(tok)) { score += 1.5 * idf; matched.push(tok); }
-  }
-  return { score, matched };
 }
 
 mount(App);

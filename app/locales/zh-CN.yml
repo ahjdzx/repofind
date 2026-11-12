@@ -15,6 +15,7 @@ app:
   status_scanning: 扫描中…
   status_indexing: 生成向量…
   status_scan: 个仓库已扫描
+  status_indexed: 个仓库已索引 (无向量, 仅词法检索)
   status_ready: 个仓库 · 向量就绪
   status_no_key: 个仓库 (未配置 API key, 仅词法检索)
   status_index_failed: "索引失败:"

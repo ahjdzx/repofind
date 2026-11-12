@@ -15,6 +15,7 @@ app:
   status_scanning: Scanning…
   status_indexing: Generating vectors…
   status_scan: repos scanned
+  status_indexed: repos indexed (no vectors, lexical only)
   status_ready: repos · vectors ready
   status_no_key: repos (no API key, lexical only)
   status_index_failed: "Index failed:"

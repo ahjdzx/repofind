@@ -15,3 +15,6 @@ jobs:
       - name: Type check
         working-directory: app
         run: nsh check
+      - name: Test
+        working-directory: app
+        run: nsh test
