@@ -1,0 +1,37 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  cli:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Syntax check
+        run: |
+          python3 -m py_compile repofind.py server.py
+      - name: Smoke test (lexical only, no API)
+        run: |
+          mkdir -p /tmp/fake-repo/.git /tmp/fake-repo2/.git
+          echo "# A test project about vector search" > /tmp/fake-repo/README.md
+          echo "# crawler tools" > /tmp/fake-repo2/README.md
+          python3 repofind.py scan -r /tmp
+          python3 repofind.py search "vector" --no-semantic
+          python3 repofind.py list
+          python3 repofind.py path "fake"
+
+  app:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install nsh
+        run: curl -fsSL https://nsh.dev/install.sh | sh
+      - name: Type check
+        working-directory: app
+        run: nsh check

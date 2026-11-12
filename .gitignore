@@ -1,0 +1,15 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# nsh app
+.nsh/
+target/
+
+# repofind 索引缓存 (在 ~/.cache/repofind, 不会进仓库, 保险起见)
+index.json
+vectors.json
+
+# macOS
+.DS_Store
