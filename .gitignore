@@ -13,3 +13,4 @@ vectors.json
 
 # macOS
 .DS_Store
+dist/
