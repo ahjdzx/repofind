@@ -1,7 +1,7 @@
 {
   "name": "RepoFind",
-  "id": "com.example.repofind",
-  "version": "1.0.0",
+  "id": "com.github.ahjdzx.repofind",
+  "version": "0.1.0",
   "build": 1,
   "capabilities": {
     "fs": { "read": ["${homeDir}", "${dataDir}"], "write": ["${dataDir}"] },

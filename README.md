@@ -1,102 +1,109 @@
 # RepoFind
 
-**用自然语言搜索你本地的 git 仓库。** 一个纯客户端桌面应用 — 无 server、无 Python、无 Node。
+**English** | [简体中文](README.zh-CN.md)
 
-本地 clone 了几百个仓库，忘了名字、忘了放哪？RepoFind 给它们建语义索引——输入"浏览器自动化的脚本"，排在前面的就是 puppeteer、你的油猴脚本和 playwright，哪怕仓库名和 README 里一个字都对不上。中文、英文、中英混合都可以。
+**Search your local git repos in plain language.** A client-only desktop app — no server, no Python, no Node.
+
+Cloned hundreds of repos and forgot what they were called or where you put them? RepoFind builds a semantic index over them. Type "scripts for automating the browser" and puppeteer, your userscripts and playwright come out on top, even when not a single word matches the repo name or README. Works in English, Chinese, or a mix.
 
 ![screenshot](docs/screenshot.png)
 
-<sub>截图用的是一组演示仓库。</sub>
+<sub>The screenshot uses a set of demo repos; the query reads "scripts for automating the browser".</sub>
 
-## 特点
+## Features
 
-- **纯客户端** — 基于 [nsh](https://nsh.dev) (Native Shell)：扫描文件系统、建索引、调 embedding API 全在应用内完成
-- **混合检索** — `0.6 × 语义(余弦相似度) + 0.4 × 词法(TF-IDF)`，语义管"意思对了"，词法保"名字精确命中不被稀释"
-- **中英混合分词** — 中文 bigram、英文驼峰拆分、路径段单独加权
-- **模型可配置** — 任意 OpenAI 兼容 embedding 接口（SiliconFlow 免费的 `BAAI/bge-m3`、OpenAI、DashScope、自建代理…），在 Settings 里切换
-- **零 git 依赖** — 分支/远端/最近提交直接读 `.git` 内部文件（HEAD / config / logs/HEAD），不调 git 进程
-- **中英双语界面** — 右上角一键切换
+- **Client-only** — built on [nsh](https://nsh.dev) (Native Shell): scanning the file system, indexing and calling the embedding API all happen inside the app
+- **Hybrid ranking** — `0.6 × semantic (cosine similarity) + 0.4 × lexical (TF-IDF)`: semantics finds what you meant, lexical keeps exact name matches on top
+- **Mixed English/Chinese tokenizer** — CJK bigrams, camelCase splitting, path segments weighted separately
+- **Bring your own model** — any OpenAI-compatible embeddings endpoint (SiliconFlow's free `BAAI/bge-m3`, OpenAI, DashScope, your own proxy…), switched in Settings
+- **No git dependency** — branch, remote and last commit are read straight from `.git` internals (HEAD / config / logs/HEAD); no git process is spawned
+- **English and Chinese UI** — one click in the top bar
 
-## 快速开始
+## Download
 
-### 1. 安装 nsh CLI
+Grab `RepoFind-<version>-macos-arm64.zip` from [Releases](https://github.com/ahjdzx/repofind/releases) (Apple silicon, macOS 14+), unzip it and move `RepoFind.app` to Applications.
+
+The build is ad hoc signed, not notarized, so macOS blocks it on first launch. Clear the quarantine flag once:
 
 ```bash
-brew install longbridge/tap/nsh
+xattr -dr com.apple.quarantine /Applications/RepoFind.app
 ```
 
-### 2. 跑起来
+Intel Macs, Windows and Linux: run from source (below).
+
+## Run from source
 
 ```bash
+brew install longbridge/tap/nsh        # the nsh CLI
 git clone https://github.com/ahjdzx/repofind.git
 cd repofind/app
 nsh run --target macos
 ```
 
-> 扫描本地目录需要桌面端（macOS / Windows / Linux）。`--target web` 能看界面，但浏览器读不到你的文件系统，建不了索引。
+> Scanning local directories needs a desktop target (macOS / Windows / Linux). `--target web` shows the UI, but a browser cannot read your file system, so it cannot build an index.
 
-### 3. 配置（Settings 页）
+## Setup (Settings page)
 
-| 字段 | 示例 | 说明 |
+| Field | Example | Notes |
 | --- | --- | --- |
-| 扫描目录 | `~/work ~/code` | 空格分隔，`~` 自动展开；必须在主目录之下（见[权限](#权限)） |
-| Base URL | `https://api.siliconflow.cn/v1` | 任意 OpenAI 兼容接口 |
-| 模型名 | `BAAI/bge-m3` | 中文推荐 bge-m3 |
-| API Key | `sk-...` | 明文存在本机的应用 Storage 里，只发给你填的 Base URL |
+| Scan roots | `~/work ~/code` | Space-separated, `~` is expanded; must be inside your home directory (see [Permissions](#permissions)) |
+| Base URL | `https://api.siliconflow.cn/v1` | Any OpenAI-compatible endpoint |
+| Model name | `BAAI/bge-m3` | bge-m3 is a good pick for Chinese |
+| API Key | `sk-...` | Stored in plain text in the app's on-device Storage; sent only to the Base URL you set |
 
-不填 API Key 也能用，只是只有词法检索。
+Without an API key the app still works, with lexical search only.
 
-### 4. 建索引 & 搜索
+Press **SCAN + INDEX** (scan → read metadata → generate vectors), then go back and describe what you are looking for:
 
-点 **SCAN + INDEX**（扫描 → 读元数据 → 生成向量），回搜索页输入描述：
+- The search box searches as you type (300 ms debounce)
+- The number on the left is the relevance score (amber = semantic hit, grey = lexical only)
+- Click a row to copy its path; GitHub repos link to their remote
+- `SEM+` / `LEX` next to the search box switches between hybrid and lexical-only
 
-- 搜索框 300ms 防抖自动搜
-- 每行左侧是相关度分数（琥珀 = 语义命中，灰 = 仅词法命中）
-- 点结果行复制路径；GitHub 仓库可直达远端
-- 搜索框右侧 `SEM+` / `LEX` 切换混合 / 纯词法
+The index and vectors are kept in the app's data directory and are there after a restart. Cloned something new? Press SCAN + INDEX again.
 
-索引和向量存在应用数据目录里，重启后直接可用；clone 了新仓库就再点一次 SCAN + INDEX。
+## Permissions
 
-## 权限
+The app declares only the capabilities it uses, in `app/nsh.json`:
 
-应用在 `app/nsh.json` 里只声明了它用得到的能力：
-
-| 能力 | 范围 | 用途 |
+| Capability | Scope | Used for |
 | --- | --- | --- |
-| 读文件 | 主目录、应用数据目录 | 扫描仓库、读回索引 |
-| 写文件 | 仅应用数据目录 | 保存索引和向量 |
-| 网络 | 任意主机 | embedding 接口地址由你配置 |
-| 剪贴板 / 打开链接 | https | 复制路径、跳转 GitHub |
+| Read files | Home directory, app data directory | Scanning repos, reading the index back |
+| Write files | App data directory only | Saving the index and vectors |
+| Network | Any host | The embedding endpoint is yours to choose |
+| Clipboard / open URL | https | Copying paths, opening GitHub |
 
-要扫主目录以外的位置（比如外接盘），在 `capabilities.fs.read` 里加上那个路径。
+To scan somewhere outside your home directory (an external drive, say), add that path to `capabilities.fs.read` and run from source.
 
-**会离开本机的数据**：建索引时，每个仓库的名称、路径（`~` 形式）、语言和 README 前 1500 字会发给你配置的 embedding 接口；搜索时发送查询词。纯词法模式不发任何请求。
+**What leaves your machine**: when indexing, each repo's name, path (in `~` form), languages and the first 1500 characters of its README go to the embedding endpoint you configured; when searching, the query does. Lexical-only mode makes no requests.
 
-## 开发
+## Development
 
 ```
 app/
-  lib.ts         # 扫描 (.git 解析) · 分词 · TF-IDF · embedding 客户端 · 混合排序 · 落盘
-  App.tsx        # UI: 搜索页 + Settings + 状态栏
-  App.test.tsx   # 回归测试: 假文件系统 + 假 embedding 接口
-  locales/       # zh-CN / en 文案
+  lib.ts         # scanning (.git parsing) · tokenizer · TF-IDF · embedding client · hybrid ranking · persistence
+  App.tsx        # UI: search, Settings, status bar
+  App.test.tsx   # regression tests: fake file system + fake embedding endpoint
+  locales/       # zh-CN / en strings
 ```
 
 ```bash
 cd app
-nsh check    # 类型检查
-nsh test     # 无头回归测试（扫描 → 索引 → 混合检索 → 重启恢复 → 切语言）
+nsh check                     # type check
+nsh test                      # headless regression tests
+nsh package --target macos    # build RepoFind.app into .nsh/out
 ```
 
 ## Roadmap
 
-- [x] 词法 + 语义混合检索
-- [x] 应用内模型配置、中英双语
-- [x] 索引 / 向量落盘
-- [ ] 增量扫描（只重扫变化的仓库）
-- [ ] 文件名级索引
-- [ ] 打包成可直接安装的 .app
-- [ ] TUI target 适配
+- [x] Lexical + semantic hybrid search
+- [x] In-app model configuration, English/Chinese UI
+- [x] Index and vectors persisted to disk
+- [x] Packaged macOS app
+- [ ] Incremental scan (only rescan repos that changed)
+- [ ] File-name level index
+- [ ] Notarized builds, Intel / Windows / Linux packages
+- [ ] TUI target
 
 ## License
 
