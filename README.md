@@ -23,15 +23,20 @@ Cloned hundreds of repos and forgot what they were called or where you put them?
 
 ## Download
 
-Grab `RepoFind-<version>-macos-arm64.zip` from [Releases](https://github.com/ahjdzx/repofind/releases) (Apple silicon, macOS 14+), unzip it and move `RepoFind.app` to Applications.
+Pick your platform's file from [Releases](https://github.com/ahjdzx/repofind/releases):
 
-The build is ad hoc signed, not notarized, so macOS blocks it on first launch. Clear the quarantine flag once:
+| Platform | File | Needs |
+| --- | --- | --- |
+| macOS, Apple silicon | `RepoFind-<version>-macos-arm64.zip` | macOS 14+ |
+| macOS, Intel | `RepoFind-<version>-macos-x86_64.zip` | macOS 14+ |
+| Linux | `RepoFind-<version>-linux-x86_64.tar.gz` / `-linux-arm64.tar.gz` | glibc 2.39+, GTK 4.14+ (Ubuntu 24.04 or later) |
+| Windows | `RepoFind-<version>-windows-x86_64.zip` | Windows 10 1809+ |
 
-```bash
-xattr -dr com.apple.quarantine /Applications/RepoFind.app
-```
+- **macOS**: unzip and move `RepoFind.app` to Applications. The build is ad hoc signed, not notarized, so macOS blocks the first launch; clear the quarantine flag once with `xattr -dr com.apple.quarantine /Applications/RepoFind.app`.
+- **Linux**: extract the archive and run the `RepoFind` executable inside it.
+- **Windows**: unzip and run `RepoFind.exe`. It is not code signed, so SmartScreen warns on first launch.
 
-Intel Macs, Windows and Linux: run from source (below).
+Only the Apple silicon build has been run by hand so far; the others are built and tested headlessly in CI. Reports are welcome.
 
 ## Run from source
 
@@ -104,7 +109,8 @@ nsh package --target macos    # build RepoFind.app into .nsh/out
 - [x] Packaged macOS app
 - [ ] Incremental scan (only rescan repos that changed)
 - [ ] File-name level index
-- [ ] Notarized builds, Intel / Windows / Linux packages
+- [x] Packages for Intel Macs, Linux and Windows
+- [ ] Notarized / code-signed builds
 - [ ] TUI target
 
 ## License

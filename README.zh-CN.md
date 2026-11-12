@@ -23,15 +23,22 @@
 
 ## 下载
 
-从 [Releases](https://github.com/ahjdzx/repofind/releases) 下载 `RepoFind-<版本>-macos-arm64.zip`（Apple 芯片，macOS 14+），解压后把 `RepoFind.app` 拖进"应用程序"。
+从 [Releases](https://github.com/ahjdzx/repofind/releases) 下载对应平台的文件：
 
-安装包是 ad hoc 签名、没有公证，首次打开会被 macOS 拦住，执行一次下面的命令解除隔离：
+| 平台 | 文件 | 要求 |
+| --- | --- | --- |
+| macOS，Apple 芯片 | `RepoFind-<版本>-macos-arm64.zip` | macOS 14+ |
+| macOS，Intel | `RepoFind-<版本>-macos-x86_64.zip` | macOS 14+ |
+| Linux | `RepoFind-<版本>-linux-x86_64.tar.gz` / `-linux-arm64.tar.gz` | glibc 2.39+、GTK 4.14+（Ubuntu 24.04 及以后） |
+| Windows | `RepoFind-<版本>-windows-x86_64.zip` | Windows 10 1809+ |
 
-```bash
-xattr -dr com.apple.quarantine /Applications/RepoFind.app
-```
+- **macOS**：解压后把 `RepoFind.app` 拖进"应用程序"。安装包是 ad hoc 签名、没有公证，首次打开会被拦住，执行一次 `xattr -dr com.apple.quarantine /Applications/RepoFind.app` 解除隔离。
+- **Linux**：解压后运行目录里的 `RepoFind`。
+- **Windows**：解压后运行 `RepoFind.exe`。没有代码签名，首次打开 SmartScreen 会提示。
 
-Intel Mac、Windows、Linux 请按下面的方式从源码运行，然后从第 3 步看起。
+目前只有 Apple 芯片版实际上手跑过，其余平台只在 CI 里通过了无头测试和打包，欢迎反馈。
+
+装好后从下面的第 3 步（配置）看起。
 
 ## 从源码运行
 
@@ -113,7 +120,8 @@ nsh package --target macos    # 打包 RepoFind.app 到 .nsh/out
 - [x] 打包 macOS 应用
 - [ ] 增量扫描（只重扫变化的仓库）
 - [ ] 文件名级索引
-- [ ] 公证签名，Intel / Windows / Linux 安装包
+- [x] Intel Mac / Linux / Windows 安装包
+- [ ] 公证与代码签名
 - [ ] TUI target 适配
 
 ## License
