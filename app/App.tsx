@@ -1,5 +1,7 @@
 import { mount, signal, effect, Text, View, Scroll, Clipboard, openUrl, Storage } from "nsh";
 import { Input } from "nsh/base";
+import { t, setLocale } from "nsh/i18n";
+import { locale } from "nsh";
 import {
   scanRepo, findRepos, expandTilde, tokenize, pathTokens, LexicalIndex,
   embedTexts, cosine, repoText, hybridSearch, home,
@@ -41,7 +43,7 @@ function loadConfig(): EmbedConfig {
 function loadState(): AppState {
   return {
     phase: "idle",
-    status: "未索引",
+    status: t("app.not_indexed"),
     progress: "",
     repos: [],
     vectorMeta: null,
@@ -66,6 +68,8 @@ function App() {
   effect(() => {
     (async () => {
       try {
+        const savedLocale = await Storage.getItem("locale");
+        if (savedLocale) setLocale(savedLocale);
         const savedCfg = await Storage.getItem("cfg");
         if (savedCfg) cfg.set({ ...cfg(), ...JSON.parse(savedCfg) });
         const savedRoots = await Storage.getItem("roots");
@@ -165,7 +169,7 @@ function App() {
   async function runIndex() {
     const roots = state().roots.split(/\s+/).filter(Boolean).map(expandTilde);
     if (!roots.length) return;
-    state.set({ ...state(), phase: "scanning", progress: "", status: "扫描中…" });
+    state.set({ ...state(), phase: "scanning", progress: "", status: t("app.status_scanning") });
     try {
       const found: string[] = [];
       for (const r of roots) {
@@ -248,13 +252,28 @@ function App() {
                 SEMANTIC INDEX v1
               </Text>
             </View>
-            <View
-              class="rounded px-3 py-1"
-              style={{ borderWidth: 1, borderColor: LINE }}
-              role="button"
-              onPress={() => screen.set("settings")}
-            >
-              <Text style={{ fontSize: 11, color: MUTED, fontFamily: mono }}>⚙ SETTINGS</Text>
+            <View class="flex-row gap-2 items-center">
+              <View
+                class="rounded px-2 py-1"
+                style={{ borderWidth: 1, borderColor: locale().startsWith("zh") ? ACCENT_DIM : LINE }}
+                role="button"
+                onPress={() => {
+                  const next = locale().startsWith("zh") ? "en" : "zh-CN";
+                  setLocale(next);
+                  Storage.setItem("locale", next).catch(() => {});
+                  state.set({ ...state(), status: t("app.not_indexed") && state().repos.length ? state().repos.length + " " + t("app.status_ready") : t("app.not_indexed") });
+                }}
+              >
+                <Text style={{ fontSize: 10, color: MUTED, fontFamily: mono }}>{locale().startsWith("zh") ? "EN" : "中文"}</Text>
+              </View>
+              <View
+                class="rounded px-3 py-1"
+                style={{ borderWidth: 1, borderColor: LINE }}
+                role="button"
+                onPress={() => screen.set("settings")}
+              >
+                <Text style={{ fontSize: 11, color: MUTED, fontFamily: mono }}>⚙ SETTINGS</Text>
+              </View>
             </View>
           </View>
 
@@ -270,7 +289,7 @@ function App() {
               <Input
                 value={query()}
                 onChange={(e: { value: string }) => query.set(e.value)}
-                placeholder="描述你想找的仓库 — 推荐系统 / rust gui / 爬虫…"
+                placeholder={t("app.placeholder")}
                 returnKeyType="search"
                 submitBehavior="submit"
                 autoFocus
@@ -299,11 +318,11 @@ function App() {
               <View class="items-center pt-24 gap-3">
                 <Text style={{ fontSize: 40, color: LINE }}>◎</Text>
                 <Text style={{ color: MUTED, fontSize: 13, fontFamily: mono }}>
-                  {query() ? "无匹配 — 换个说法" : state().repos.length ? "输入自然语言描述" : "先去 SETTINGS 建索引"}
+                  {query() ? t("app.no_match") : state().repos.length ? t("app.type_to_search") : t("app.go_settings")}
                 </Text>
                 {state().repos.length > 0 && (
                   <View class="flex-row gap-4 pt-2">
-                    {["推荐系统", "向量检索", "爬虫"].map((s) => (
+                    {[t("suggestions.rec"), t("suggestions.emb"), t("suggestions.crawler")].map((s) => (
                       <Text
                         style={{ color: ACCENT_DIM, fontSize: 12, fontFamily: mono }}
                         onPress={() => query.set(s)}
@@ -408,8 +427,8 @@ function App() {
         <Scroll class="flex-1">
           <View class="px-6 py-5 gap-6">
             {/* 扫描 */}
-            <Section title="1 · 索引">
-              <Field label="扫描目录 (空格分隔)" value={state().roots}
+            <Section title={t("settings.section_index")}>
+              <Field label={t("settings.scan_dirs")} value={state().roots}
                 onChange={(v: string) => {
                   state.set({ ...state(), roots: v });
                   Storage.setItem("roots", v).catch(() => {});
@@ -431,21 +450,21 @@ function App() {
                   </Text>
                 </View>
                 <Text style={{ color: MUTED, fontSize: 11, fontFamily: mono, flex: 1, numberOfLines: 2 }}>
-                  {state().progress || (state().scannedAt ? `上次: ${state().scannedAt}` : "")}
+                  {state().progress || (state().scannedAt ? `${t("settings.last_scan")} ${state().scannedAt}` : "")}
                 </Text>
               </View>
             </Section>
 
             {/* 模型配置 */}
-            <Section title="2 · Embedding 模型">
-              <Field label="Base URL (OpenAI 兼容)" value={cfg().baseUrl}
+            <Section title={t("settings.section_model")}>
+              <Field label={t("settings.base_url")} value={cfg().baseUrl}
                 onChange={(v: string) => saveCfg({ ...cfg(), baseUrl: v })} />
-              <Field label="模型名" value={cfg().model}
+              <Field label={t("settings.model_name")} value={cfg().model}
                 onChange={(v: string) => saveCfg({ ...cfg(), model: v })} />
               <Field label="API Key" value={cfg().apiKey} masked
                 onChange={(v: string) => saveCfg({ ...cfg(), apiKey: v })} />
               <Text style={{ color: MUTED, fontSize: 10, fontFamily: mono, lineHeight: 15 }}>
-                {'任意 OpenAI 兼容接口。推荐: SiliconFlow 免费 BAAI/bge-m3 (中文好)\n配置保存在本机 Storage, 不上传'}
+                {t("settings.model_hint") + String.fromCharCode(10) + t("settings.storage_hint")}
               </Text>
               {state().vectorMeta ? (
                 <Text style={{ color: SCAN, fontSize: 10, fontFamily: mono }}>
@@ -453,7 +472,7 @@ function App() {
                 </Text>
               ) : (
                 <Text style={{ color: ACCENT_DIM, fontSize: 10, fontFamily: mono }}>
-                  无向量 — 仅词法模式 (SEM 开关无效)
+                  {t("settings.no_vectors")}
                 </Text>
               )}
             </Section>
@@ -461,7 +480,7 @@ function App() {
             {/* 关于 */}
             <Section title="About">
               <Text style={{ color: MUTED, fontSize: 11, fontFamily: mono, lineHeight: 17 }}>
-                {'RepoFind — 语义检索本地 git 仓库\n混合排序: 0.6 × cosine + 0.4 × TF-IDF\ngithub.com/ahjdzx/repofind'}
+                {t("settings.about_line1") + String.fromCharCode(10) + t("settings.about_line2") + String.fromCharCode(10) + t("settings.about_line3")}
               </Text>
             </Section>
           </View>

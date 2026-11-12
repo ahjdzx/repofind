@@ -1,0 +1,50 @@
+app:
+  title: REPOFIND
+  subtitle: SEMANTIC INDEX v1
+  settings: ⚙ SETTINGS
+  back: ‹ BACK
+  placeholder: 描述你想找的仓库 — 推荐系统 / rust gui / 爬虫…
+  searching: 搜索中…
+  no_match: 无匹配 — 换个说法
+  type_to_search: 输入自然语言描述
+  go_settings: 先去 SETTINGS 建索引
+  results: RESULTS
+  repos_indexed: REPOS INDEXED
+  path_copied: ✓ PATH COPIED
+  not_indexed: 未索引
+  status_scanning: 扫描中…
+  status_indexing: 生成向量…
+  status_scan: 个仓库已扫描
+  status_ready: 个仓库 · 向量就绪
+  status_no_key: 个仓库 (未配置 API key, 仅词法检索)
+  status_index_failed: "索引失败:"
+  status_search_failed: "搜索出错:"
+  mode_hybrid: HYBRID
+  mode_lexical: LEXICAL
+  semantic_hit: SEM
+  lexical_hit: LEX
+  github: GITHUB ↗
+settings:
+  title: SETTINGS
+  section_index: 1 · 索引
+  section_model: 2 · Embedding 模型
+  section_lang: 3 · 语言 / Language
+  scan_dirs: 扫描目录 (空格分隔)
+  base_url: Base URL (OpenAI 兼容)
+  model_name: 模型名
+  api_key: API Key
+  scan_button: ▶ SCAN + INDEX
+  scanning: SCANNING…
+  embedding: EMBEDDING…
+  last_scan: "上次:"
+  no_vectors: 无向量 — 仅词法模式 (SEM 开关无效)
+  model_hint: "任意 OpenAI 兼容接口。推荐: SiliconFlow 免费 BAAI/bge-m3 (中文好)"
+  storage_hint: "配置保存在本机 Storage, 不上传"
+  about: About
+  about_line1: RepoFind — 语义检索本地 git 仓库
+  about_line2: "混合排序: 0.6 × cosine + 0.4 × TF-IDF"
+  about_line3: "github.com/ahjdzx/repofind"
+suggestions:
+  rec: 推荐系统
+  emb: 向量检索
+  crawler: 爬虫

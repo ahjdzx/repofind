@@ -1,0 +1,50 @@
+app:
+  title: REPOFIND
+  subtitle: SEMANTIC INDEX v1
+  settings: ⚙ SETTINGS
+  back: ‹ BACK
+  placeholder: Describe the repo you want — recommender / rust gui / crawler…
+  searching: Searching…
+  no_match: No match — try different words
+  type_to_search: Type a natural language description
+  go_settings: Open SETTINGS to build the index first
+  results: RESULTS
+  repos_indexed: REPOS INDEXED
+  path_copied: ✓ PATH COPIED
+  not_indexed: Not indexed
+  status_scanning: Scanning…
+  status_indexing: Generating vectors…
+  status_scan: repos scanned
+  status_ready: repos · vectors ready
+  status_no_key: repos (no API key, lexical only)
+  status_index_failed: "Index failed:"
+  status_search_failed: "Search error:"
+  mode_hybrid: HYBRID
+  mode_lexical: LEXICAL
+  semantic_hit: SEM
+  lexical_hit: LEX
+  github: GITHUB ↗
+settings:
+  title: SETTINGS
+  section_index: 1 · Index
+  section_model: 2 · Embedding model
+  section_lang: 3 · Language / 语言
+  scan_dirs: Scan roots (space-separated)
+  base_url: Base URL (OpenAI compatible)
+  model_name: Model name
+  api_key: API Key
+  scan_button: ▶ SCAN + INDEX
+  scanning: SCANNING…
+  embedding: EMBEDDING…
+  last_scan: "Last:"
+  no_vectors: No vectors — lexical mode only (SEM toggle inactive)
+  model_hint: "Any OpenAI-compatible endpoint. Tip: SiliconFlow offers free BAAI/bge-m3 (great for Chinese)"
+  storage_hint: Config is stored in on-device Storage, never uploaded
+  about: About
+  about_line1: RepoFind — semantic search for local git repos
+  about_line2: "Hybrid ranking: 0.6 × cosine + 0.4 × TF-IDF"
+  about_line3: "github.com/ahjdzx/repofind"
+suggestions:
+  rec: recommender
+  emb: vector search
+  crawler: crawler
