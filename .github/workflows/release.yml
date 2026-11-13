@@ -36,6 +36,17 @@ jobs:
           curl -fsSL https://nsh.dev/install.sh | sh
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
+      # 应用带 Rust crate (本地 embedding 模型), Linux 上要从源码编译 GTK 宿主:
+      # GTK 4 / WebKitGTK 6.0 / GStreamer 的开发包和 clang (https://nsh.dev/docs/linux.md),
+      # ONNX Runtime 的下载走 native-tls, 还要 OpenSSL
+      - name: Linux build dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            pkg-config clang libssl-dev libgtk-4-dev libwebkitgtk-6.0-dev \
+            libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev
+
       - name: Install nsh (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
