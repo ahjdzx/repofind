@@ -3,6 +3,7 @@
   "id": "com.github.ahjdzx.repofind",
   "version": "0.1.1",
   "build": 2,
+  "rust": ".",
   "icon": {
     "macos": "icon-macos.png",
     "windows": "icon-full.png",
