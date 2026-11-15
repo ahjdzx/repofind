@@ -127,4 +127,9 @@ jobs:
           ls -la dist
           notes=".github/release-notes/$GITHUB_REF_NAME.md"
           if [ -f "$notes" ]; then set -- --notes-file "$notes"; else set -- --generate-notes; fi
-          gh release create "$GITHUB_REF_NAME" dist/* --title "RepoFind $GITHUB_REF_NAME" --prerelease "$@"
+          # v1.2.3 是正式版 (Latest); 带后缀的 v1.2.3-rc1 是预发布
+          case "$GITHUB_REF_NAME" in
+            *-*) set -- "$@" --prerelease ;;
+            *) set -- "$@" --latest ;;
+          esac
+          gh release create "$GITHUB_REF_NAME" dist/* --title "RepoFind $GITHUB_REF_NAME" "$@"
