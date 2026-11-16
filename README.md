@@ -8,9 +8,11 @@
 
 Cloned hundreds of repos and forgot what they were called or where you put them? RepoFind builds a semantic index over them. Type "scripts for automating the browser" and puppeteer, your userscripts and playwright come out on top, even when not a single word matches the repo name or README. Works in English, Chinese, or a mix.
 
-![screenshot](docs/screenshot.png)
+![Search: "scripts for automating the browser"](docs/search.png)
 
-<sub>The screenshot uses a set of demo repos; the query reads "scripts for automating the browser".</sub>
+![Atlas: repos by topic, language and how long since you touched them](docs/atlas.png)
+
+<sub>Screenshots use a set of demo repos. Top: searching "scripts for automating the browser" with the built-in local model. Bottom: the Atlas page.</sub>
 
 ## Features
 

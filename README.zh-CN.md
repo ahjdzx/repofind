@@ -8,9 +8,11 @@
 
 本地 clone 了几百个仓库，忘了名字、忘了放哪？RepoFind 给它们建语义索引——输入"浏览器自动化的脚本"，排在前面的就是 puppeteer、你的油猴脚本和 playwright，哪怕仓库名和 README 里一个字都对不上。中文、英文、中英混合都可以。
 
-![screenshot](docs/screenshot.png)
+![搜索：浏览器自动化的脚本](docs/search.zh-CN.png)
 
-<sub>截图用的是一组演示仓库。</sub>
+![总览：按主题、语言和最近变动给仓库归类](docs/atlas.zh-CN.png)
+
+<sub>截图用的是一组演示仓库。上图：用内置的本地模型搜「浏览器自动化的脚本」；下图：总览页。</sub>
 
 ## 特点
 

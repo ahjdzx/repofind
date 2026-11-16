@@ -525,6 +525,7 @@ function App() {
               <Input
                 value={query()}
                 onChange={(e: { value: string }) => query.set(e.value)}
+                testID="search-input"
                 placeholder={t("app.placeholder")}
                 returnKeyType="search"
                 submitBehavior="submit"
