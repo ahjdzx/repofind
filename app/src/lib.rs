@@ -46,6 +46,12 @@ pub struct DownloadState {
     pub error: SharedString,
     /// The host it downloads from (`huggingface.co` or `hf-mirror.com`).
     pub source: SharedString,
+    /// Bytes per second over the last few seconds.
+    pub speed: f64,
+    /// Whether it moved to the other host because this one was slow or dropped.
+    pub switched: bool,
+    /// Whether it finished downloading and is checking the files.
+    pub verifying: bool,
 }
 
 /// Local embedding models: download, remove and run them on this machine.
@@ -229,6 +235,9 @@ impl Local {
                 active: p.active,
                 error: p.error.into(),
                 source: p.source.into(),
+                speed: p.speed,
+                switched: p.switched,
+                verifying: p.verifying,
             }
         }
         #[cfg(not(local_engine))]
@@ -315,6 +324,7 @@ mod tests {
         models::download(&data, ID, "auto").expect("download");
         assert!(models::is_installed(&data, ID));
         let p = models::PROGRESS.lock().unwrap().clone();
+        println!("downloaded from {} (switched: {}), {} bytes", p.source, p.switched, p.done);
         assert!(!p.active && p.error.is_empty() && p.done > 20_000_000, "{:?}", (p.done, p.error));
         let model = models::model_dir(&data, ID).join("model.onnx");
         let full = fs::read(&model).unwrap();

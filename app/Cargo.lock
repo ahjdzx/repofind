@@ -1270,6 +1270,7 @@ dependencies = [
  "ndarray",
  "nsh-core",
  "ort",
+ "sha2",
  "tokenizers",
  "ureq",
 ]

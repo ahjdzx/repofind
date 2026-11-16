@@ -89,6 +89,8 @@ interface Opts {
   installed?: string[];
   localEmbed?: (dir: string, id: string, texts: string[], query: boolean) => number[];
   download?: () => unknown;
+  /** Local.progress 返回什么 */
+  progress?: object;
   /** 打开文件夹 / 终端的调用记录 */
   shellCalls?: string[][];
   terminals?: string[];
@@ -123,7 +125,7 @@ function options(files: Map<string, string | Uint8Array>, o: Opts | string = {})
         "Local.supported": opt.supported ?? true,
         "Local.models": LOCAL_MODELS,
         "Local.installed": opt.installed ?? [],
-        "Local.progress": { id: "", done: 0, total: 0, active: false, error: "", source: "" },
+        "Local.progress": opt.progress ?? { id: "", done: 0, total: 0, active: false, error: "", source: "", speed: 0, switched: false, verifying: false },
         "Local.loaded": "",
         "Local.download": opt.download ?? (() => { throw new Error("offline in tests"); }),
         "Local.embed": opt.localEmbed ?? (() => { throw new Error("no local model in tests"); }),
@@ -411,6 +413,22 @@ test("the status bar doesn't say vectors are ready when they came from another m
   }));
   await second.waitFor("2 repos · the vectors don't match the model in Settings, lexical only");
   expect(second.texts()).not.toContain("2 repos · vectors ready");
+});
+
+test("a download that moved to the mirror says so, with its speed", async () => {
+  const app = await open("./App.tsx", options(fixture(), {
+    embed: { provider: "local", local: { model: "multilingual-e5-small", source: "auto" } },
+    download: () => new Promise(() => {}), // 一直在下
+    progress: {
+      id: "multilingual-e5-small", done: 54e6, total: 135e6, active: true, error: "",
+      source: "hf-mirror.com", speed: 1.8e6, switched: true, verifying: false,
+    },
+  }));
+  await app.press("id:tab-settings");
+  await app.press("id:download-multilingual-e5-small");
+  await app.waitFor(
+    "Downloading multilingual-e5-small 40% (54/135 MB) · 1.8 MB/s · switched to hf-mirror.com (the other host was slow)",
+  );
 });
 
 test("switches language", async () => {

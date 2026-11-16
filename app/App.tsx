@@ -63,10 +63,20 @@ function statusText(s: Status): string {
   return [s.n !== undefined ? String(s.n) : "", t(s.key), s.detail ?? ""].filter(Boolean).join(" ");
 }
 
+function speedText(bps: number): string {
+  if (bps >= 1e6) return `${(bps / 1e6).toFixed(1)} MB/s`;
+  return `${Math.max(1, Math.round(bps / 1e3))} KB/s`;
+}
+
 function downloadText(p: DownloadState): string {
+  if (p.verifying) return t("embed.verifying", { id: p.id });
   const pct = p.total > 0 ? Math.min(100, Math.floor((100 * p.done) / p.total)) : 0;
   const mb = (n: number) => (n / 1e6).toFixed(0);
-  return t("embed.downloading", { id: p.id, pct, done: mb(p.done), total: mb(p.total) }) + (p.source ? ` · ${p.source}` : "");
+  const parts = [t("embed.downloading", { id: p.id, pct, done: mb(p.done), total: mb(p.total) })];
+  if (p.speed > 0) parts.push(speedText(p.speed));
+  // 换过源就说出来, 免得用户看到地址变了以为出错
+  if (p.source) parts.push(p.switched ? t("embed.switched", { source: p.source }) : p.source);
+  return parts.join(" · ");
 }
 
 function errText(e: unknown): string {
@@ -366,7 +376,7 @@ function App() {
   /** 下载本地模型; 下载期间每 300ms 读一次进度 */
   async function downloadModel(id: string): Promise<void> {
     if (!localOk || download()?.active) return;
-    download.set({ id, done: 0, total: 1, active: true, error: "", source: "" });
+    download.set({ id, done: 0, total: 1, active: true, error: "", source: "", speed: 0, switched: false, verifying: false });
     const poll = setInterval(() => {
       const p = Local.progress();
       download.set(p);

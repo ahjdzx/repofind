@@ -79,7 +79,7 @@ Local models (int8-quantized ONNX, timings per repo measured on an Apple M1):
 | `multilingual-e5-base` | 296 MB | ~160 ms | Larger e5 |
 | `bge-m3` | 587 MB | ~500 ms | Best results in our tests; about 1.5 GB of memory while loaded |
 
-Models download from huggingface.co, or hf-mirror.com when Hugging Face is unreachable (selectable in Settings); interrupted downloads resume. A loaded model is unloaded after 3 idle minutes. Switching models means rebuilding the index. Without any working source the app still works, with lexical search only.
+Models download from huggingface.co or hf-mirror.com, whichever answers faster; if the download slows to a crawl or drops, it moves to the other one and carries on where it stopped (the source can also be fixed in Settings). Each model is checked against its published SHA-256 before it is used. A loaded model is unloaded after 3 idle minutes. Switching models means rebuilding the index. Without any working source the app still works, with lexical search only.
 
 Press **Build index now** on the search page (or **SCAN + INDEX** in Settings), then describe what you are looking for:
 

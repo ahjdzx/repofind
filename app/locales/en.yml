@@ -166,6 +166,8 @@ embed:
   local_note: "Models are int8-quantized ONNX files kept in the app's data folder. A loaded model uses about 0.5–1.5 GB of memory and is unloaded after 3 idle minutes. Switching models means rebuilding the index. Timings are per repo on an Apple M1."
   recommended: "Default"
   downloading: "Downloading %{id} %{pct}% (%{done}/%{total} MB)"
+  switched: "switched to %{source} (the other host was slow)"
+  verifying: "Checking %{id}…"
   download_failed: "Download failed: %{error}"
   cancel: "Cancel"
   in_use: "In use"

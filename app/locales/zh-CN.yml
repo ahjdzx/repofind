@@ -166,6 +166,8 @@ embed:
   local_note: "模型是 int8 量化的 ONNX 文件，放在应用数据目录里。加载后约占 0.5–1.5 GB 内存，闲置 3 分钟自动卸载。换模型后需要重新建索引。下面的耗时是 Apple M1 上每个仓库的实测值。"
   recommended: "默认"
   downloading: "正在下载 %{id} %{pct}%（%{done}/%{total} MB）"
+  switched: "已切换到 %{source}（原来的源太慢）"
+  verifying: "正在校验 %{id}…"
   download_failed: "下载失败：%{error}"
   cancel: "取消"
   in_use: "使用中"

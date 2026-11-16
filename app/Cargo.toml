@@ -15,3 +15,4 @@ ort = { version = "=2.0.0-rc.15", default-features = false, features = ["std", "
 tokenizers = { version = "0.23.2", default-features = false, features = ["onig"] }
 ndarray = "0.17.2"
 ureq = "3"
+sha2 = "0.10"
